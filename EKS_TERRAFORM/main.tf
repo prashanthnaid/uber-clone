@@ -13,15 +13,15 @@ data "aws_iam_policy_document" "assume_role" {
 }
 
 # IAM role for EKS cluster
-resource "aws_iam_role" "example" {
+resource "aws_iam_role" "eks_cluster_role" {
   name               = "eks-cluster-cloud"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
 # Attach EKS Cluster policy to the IAM role
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSClusterPolicy" {
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.example.name
+  role       = aws_iam_role.eks_cluster_role.name
 }
 
 # Get VPC data
@@ -40,19 +40,19 @@ data "aws_subnets" "public" {
 # Provision the EKS cluster
 resource "aws_eks_cluster" "example" {
   name     = "EKS_CLOUD"
-  role_arn = aws_iam_role.example.arn
- }
+  role_arn = aws_iam_role.eks_cluster_role.arn
+
   vpc_config {
     subnet_ids = data.aws_subnets.public.ids
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.example-AmazonEKSClusterPolicy,
+    aws_iam_role_policy_attachment.eks_cluster_policy_attachment,
   ]
-
+}
 
 # IAM role for EKS node group
-resource "aws_iam_role" "example1" {
+resource "aws_iam_role" "eks_node_group_role" {
   name = "eks-node-group-cloud"
 
   assume_role_policy = jsonencode({
@@ -67,29 +67,27 @@ resource "aws_iam_role" "example1" {
   })
 }
 
-# Attach AmazonEKSWorkerNodePolicy to the IAM role
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
+# Attach necessary policies to the IAM role for the node group
+resource "aws_iam_role_policy_attachment" "eks_worker_node_policy_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.example1.name
+  role       = aws_iam_role.eks_node_group_role.name
 }
 
-# Attach AmazonEKS_CNI_Policy to the IAM role
-resource "aws_iam_role_policy_attachment" "example-AmazonEKS_CNI_Policy" {
+resource "aws_iam_role_policy_attachment" "eks_cni_policy_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.example1.name
+  role       = aws_iam_role.eks_node_group_role.name
 }
 
-# Attach AmazonEC2ContainerRegistryReadOnly to the IAM role
-resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryReadOnly" {
+resource "aws_iam_role_policy_attachment" "ec2_container_registry_readonly_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.example1.name
+  role       = aws_iam_role.eks_node_group_role.name
 }
 
 # Create an EKS Node Group
 resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
   node_group_name = "Node-cloud"
-  node_role_arn   = aws_iam_role.example1.arn
+  node_role_arn   = aws_iam_role.eks_node_group_role.arn
   subnet_ids      = data.aws_subnets.public.ids
 
   scaling_config {
@@ -97,11 +95,12 @@ resource "aws_eks_node_group" "example" {
     max_size     = 2
     min_size     = 1
   }
+
   instance_types = ["t2.medium"]
 
   depends_on = [
-    aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
+    aws_iam_role_policy_attachment.eks_worker_node_policy_attachment,
+    aws_iam_role_policy_attachment.eks_cni_policy_attachment,
+    aws_iam_role_policy_attachment.ec2_container_registry_readonly_attachment,
   ]
 }
