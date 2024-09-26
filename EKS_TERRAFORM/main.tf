@@ -49,7 +49,7 @@ resource "aws_eks_cluster" "example" {
   depends_on = [
     aws_iam_role_policy_attachment.example-AmazonEKSClusterPolicy,
   ]
-}
+
 
 # IAM role for EKS node group
 resource "aws_iam_role" "example1" {
